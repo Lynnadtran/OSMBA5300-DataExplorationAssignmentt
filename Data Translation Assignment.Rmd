@@ -11,6 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 ```{r Load Libraries}
+####LOAD LIBRARIES####
 library(tidyverse)
 library(jtools)
 library(car)
@@ -21,6 +22,7 @@ library(lubridate)
 
 
 ```{r Import Data}
+####IMPORT DATA####
 Scorecard <- read.csv("Lab3_Rawdata/Most+Recent+Cohorts+(Scorecard+Elements).csv")
 
 name_id <- read_csv("Lab3_Rawdata/id_name_link.csv") %>%
@@ -41,6 +43,7 @@ trends <- list.files(path = 'Lab3_Rawdata', pattern = 'trends_up_to_') %>%
 
 
 ```{r MERGE DATA}
+####MERGE DATA####
 name_trends_scorecard    <- inner_join(name_id, Scorecard, by = 'OPEID', 'UNITID') %>%
   inner_join(trends, by = 'schname')
 ```
@@ -48,7 +51,7 @@ name_trends_scorecard    <- inner_join(name_id, Scorecard, by = 'OPEID', 'UNITID
 
 
 ```{r FILTERING COLLEGES}
-
+####FILTERING COLLEGES ####
 #Colleges that predominantly grant bachelors degrees 
 bachelors_colleges <- name_trends_scorecard %>%
   filter(PREDDEG == 3) %>%
@@ -77,7 +80,15 @@ sd_index_colleges <- interested_colleges %>%
             keyword, monthorweek, keynum, median_earnings, sd_index, high_earning, low_earning)
 ```
 
+When filtering colleges that I'm using in my dataset, I keep all the colleges that colleges that predominantly grant bachelor’s degrees. Because I will be comparing the median earnings between colleges, any colleges that have values of 'Null' or 'PrivacySuppressed' will also be filtered out. These values won't be adding any value to my dataset so it's ok for me to filter them out since I'm not 'losing' any median earning data if I didn't have them in the first place. 
+
+To define whether a school is considered a high-earning college as relative to a low-earning college, I analyzed all the available median earnings of graduates ten years after graduation for each college. From the list of median earnings, I found the median of the median earnings. Therefore, I knew the median of the college's median earnings was 41,800. Because of that, I concluded that if a school's median earnings is above 41,800, they are considered a high-earning college. Vice versa, if a school's median earnings is less than 41,799, they are considered a low-earning college. Using that as the  citeria, I was able to make a binary variable for whether a school is considered high-earning or not. That will act at my dummy variable going forward.
+
+The Google Trends indices are comparable only to themselves. Because of that, I chose to group my dataset by name and then keynum. It was important to include both the school name and the keyword since keywords can differ for each school. Once my dataset is grouped appropriately, I standardize the index to make it easier to compare between keynums. I wanted to do it on the key num level early on in my data wrangling because the index  describes the instances of each key num, per school. 
+
+
 ```{r GROUP BY DATE}
+###GROUP BY DATE ####
 college_information <- interested_colleges %>% 
   select(schname ,median_earnings, high_earning) %>%
   distinct(schname ,median_earnings, high_earning)
@@ -120,6 +131,7 @@ college_sdindex_year <- left_join(college_sdindex_year2013, college_sdindex_year
   left_join(college_information, by = 'schname')
 ```
 
+I chose to analyze my data at the year level. I thought it will be easier to subset my data that way instead of leaving it at the weekly data. That way, I can get the whole picture of how the standardized index is changing year by year, instead of partitioning it by week. I built a new dataset for every year by filtering on the dates to ensure that only data from that year is shown. I chose to sum the standardized index, grouped by year because logically, it made sense that the changes of the standardized index per week can be summed up altogether to display the changes from the year. That way, I'm only left with one standardized index per year. If a school's year standardized index is negative, it means that there was less keywords getting searched as compared within the school's keywords as opposed to a positive year standardized index. After builting the dataset filtered for each year, I combined them together into one big dataset. That way, each school will have a value of standardized index for each year. 
 
 ```{r MODELS}
 ###2013 MODEL
@@ -149,6 +161,7 @@ sd_index_model2016HE <- lm(data = college_sdindex_year, median_earnings ~ sd_ind
 
 ```
 
+After I combined all the years' (2013-2016) standardized index into one dataset for each school name, I have a 'tidy' dataset that I'm able to run models on. I built models based on the median earnings of each school and their standardized indexes, by year. That way, I'm comparing the school's standardized index with other school's standardized index of the same year. I produced one model for each year without our dummy variable of high-earning college or not, and one model with the dummy variable. It was important to include the dummy variable because our research question is student interest between a high-earning school, relative to a low-earning school. 
 ```{r COEFFICIENTS TABLES}
 
 export_summs(sd_index_model2013, sd_index_model2014, sd_index_model2015, sd_index_model2016)
@@ -156,53 +169,44 @@ export_summs(sd_index_model2013, sd_index_model2014, sd_index_model2015, sd_inde
 export_summs(sd_index_model2013HE, sd_index_model2014HE, sd_index_model2015HE, sd_index_model2016HE)
 
 ```
+When comparing the models without the dummy variables to the models that include the dummy variables, the co-efficient do change for each model. That makes sense for our analysis because it shows that the dummy variable was included previously in our error term and by using the dummy variable in the models, we are accurately describing the effect of whether a school being high-earning or low-earning will effect student interest. This is a good sign that we should use the dummy variables models when we are conducting the rest of our analysis. By looking at the 2nd coefficient table that compares the yearly models with the dummy variables, we can make these conclusions: 
 
+Relationship between a school's median earnings and student interest as based of Google Trend index:
+      - In 2013: A school's median earnings increases by $15.79 as a school's student interest increases by         1 standardized index.
+      - In 2014: A school's median earnings increases by $26.79 as a school's student interest increases by         1 standardized index.
+      - In 2015: A school's median earnings decreases by $25.11 as a school's student interest increases by         1 standardized index
+      - In 2016: A school's median earnings decreases by $25.51 as a school's student interest increases by         1 standardized index.
+We can concluded that some years's median earnings have a positive relationship between median earnings and student interest but other years, there's a negative effect. This shows that the relationship isn't always consistent and can change year by year. It will be interesting to add other variables that might be in the error term that will explain why the relationships change between years such as yearly unemployment rates which could affect median earnings or perhaps the some colleges have bad publicity that year which could affect student interest.  
 
-```{r 2013 plots, echo=FALSE}
-##2013 model 
-ggplot(data = sd_index_model2013, aes(sd_index2013, median_earnings)) +
-  geom_point() + ggtitle("All Schools 2013")
+If a school is considered high-earning, the median earnings of a graduate after 10 years increases as compared to a school that is considered low-earning. 
+    - In 2013: A 10-year high-earning school graduate makes $16,652 more than a graduate from a low-earning                school. 
+    - In 2014: A 10-year high-earning school graduate makes $16,801 more than a graduate from a low-earning                school. 
+    - In 2015: A 10-year high-earning school graduate makes $16,533 more than a graduate from a low-earning                school. 
+    - In 2016: A 10-year high-earning school graduate makes $16,789 more than a graduate from a low-earning                school. 
 
-hist(rstandard(( sd_index_model2013 )), 
-     xlab = "Standardized residuals", main = 'Standardized Residuals of All Schools 2013' )
+```{r Plots, echo=FALSE}
 
 ggplot(data = sd_index_model2013HE, aes(sd_index2013, median_earnings)) +
-  geom_point() + ggtitle("All Schools 2013 with High-Earning Dummy Variable")
-```
-
-
-```{r 2014 plots, echo=FALSE}
-ggplot(data = sd_index_model2014, aes(sd_index2014, median_earnings)) +
-  geom_point() + ggtitle("All Schools 2014")
-
-hist(rstandard(( sd_index_model2014 )), 
-     xlab = "Standardized residuals", main = 'Standardized Residuals of All Schools 2014' )
+  geom_point() + ggtitle("Regression of School's Standardized Index by Median Earnings in 2013 ") + 
+  labs(x = 'Standardized Index', y = 'Median Earnings ($)')
 
 ggplot(data = sd_index_model2014HE, aes(sd_index2014, median_earnings)) +
-  geom_point() + ggtitle("All Schools 2014 with High-Earning Dummy Variable")
-```
-
-```{r 2015 plots, echo=FALSE}
-ggplot(data = sd_index_model2015, aes(sd_index2015, median_earnings)) +
-  geom_point() + ggtitle("All Schools 2015")
-
-hist(rstandard(( sd_index_model2015 )), 
-     xlab = "Standardized residuals", main = 'Standardized Residuals of All Schools 2015' )
+  geom_point() + ggtitle("Regression of School's Standardized Index by Median Earnings in 2014") +
+  labs(x = 'Standardized Index', y = 'Median Earnings ($)')
 
 ggplot(data = sd_index_model2015HE, aes(sd_index2015, median_earnings)) +
-  geom_point() + ggtitle("All Schools 2015 with High-Earning Dummy Variable")
-```
-
-```{r 2016 plots, echo=FALSE}
-ggplot(data = sd_index_model2016, aes(sd_index2016, median_earnings)) +
-  geom_point() + ggtitle("All Schools 2016")
-
-hist(rstandard(( sd_index_model2016 )), 
-     xlab = "Standardized residuals", main = 'Standardized Residuals of All Schools 2016' )
+  geom_point() + ggtitle("Regression of School's Standardized Index by Median Earnings in 2015") +
+  labs(x = 'Standardized Index', y = 'Median Earnings ($)')
 
 ggplot(data = sd_index_model2016HE, aes(sd_index2016, median_earnings)) +
-  geom_point() + ggtitle("All Schools 2016 with High-Earning Dummy Variable")
+  geom_point() + ggtitle("Regression of School's Standardized Index by Median Earnings in 2016") +
+  labs(x = 'Standardized Index', y = 'Median Earnings ($)')
+
 ```
+
+
+I plotted each model individually to see if I can graphically see any changes or patterns throughout each year. I plotted the basic model, the model with the dummy variables, and a standardized residuals as seen in my .R code but decided to only show the plots of the model with the dummy variables. As shown by the earlier coefficients tables, it was worthwhile to use the dummy variable model because it explained a statistical significance in the error term as opposed to a model that didn't use it.  It was relieving to see that the plots stayed relatively centered in the middle around standardized index of 0 and the median earnings around $50,000. It shows that my models are consistent with each other while the differences can be explained by the date range. 
+
 
 ```{r Plots Comparison, echo=FALSE}
 
@@ -211,9 +215,14 @@ allschoolsyears_plot <- ggplot(data = sd_index_model2013HE, aes(sd_index2013, me
   geom_point(data = sd_index_model2014HE, aes(sd_index2014, median_earnings, color = "2014")) +
   geom_point(data = sd_index_model2015HE, aes(sd_index2015, median_earnings, color = "2015")) +
   geom_point(data = sd_index_model2016HE, aes(sd_index2016, median_earnings, color = "2016")) +
-  ggtitle("All Schools 2013-2016 with High-Earning Dummy Variable") +
+  ggtitle("Regression of School's Standardized Index by Median Earnings in 2013-2013") +
+  labs(x = 'Standardized Index', y = 'Median Earnings ($)')
   
 
 allschoolsyears_plot + theme(legend.position = 'right')
 ```
+
+As I'm looking at the different plots from each model, I thought it will be best to plot the yearly models with each other so we can better see the changes. I think by plotting them together, it's easier to see how the models vary by year. It is interesting to see that one school seems to always produce high median earnings, even as their standardized index seemed to vary. It is interesting to see the plots from year 2015/2016 are more prominent to the right, in the negative standardized indexes as compared to the plots from 2013/2014 which are more prominent to the left with the positive standardized indexes. That defends the conclusion we drew from the coefficient tables that in 2013/2014, there was a positive relationship between median earnings and standardized indexes as opposed to 2015/2016 where there was a negative relationship. 
+
+Overall, our conclusions is that if a school is considered high-earning, the median earnings of a graduate after 10 years increases as compared to a school that is considered low-earning. This is supported by the yearly model between 2013-2016 all having positive relationships between the median earnings and whether the school is considered high-earning. It is harder to conclude if a school's median earnings is related to student interest as given by Google Trends index. We see the relationship change between the yearly models which means to us that they are other variables in the error term that have impact on a school's median earning. We will not be able to successfully conclude if more student interest is related to median's earnings by just looking at these two variables. 
 
